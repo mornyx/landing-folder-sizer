@@ -1,0 +1,290 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>landing-folder-sizer: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/mornyx/landing-folder-sizer/main.go (75.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "flag"
+        "fmt"
+        "io/ioutil"
+        "os"
+        "path/filepath"
+        "strings"
+        "sync"
+)
+
+const indentWidth = 4
+
+var flagDir = flag.String("dir", ".", "dir path to be counted")
+
+// WalkFile represents the file node in the tree.
+type WalkFile struct {
+        Name string
+        Size int64
+}
+
+// WalkDir represents the dir node in the tree.
+type WalkDir struct {
+        Name  string
+        Size  int64
+        Dirs  []WalkDir
+        Files []WalkFile
+}
+
+// Pretty returns the pretty output of the tree.
+func (d WalkDir) Pretty() string <span class="cov8" title="1">{
+        buf := strings.Builder{}
+        d.pretty(0, &amp;buf)
+        return buf.String()
+}</span>
+
+func (d WalkDir) pretty(indent int, buf *strings.Builder) <span class="cov8" title="1">{
+        for n := 0; n &lt; indent; n++ </span><span class="cov8" title="1">{
+                d.write(buf, " ")
+        }</span>
+        <span class="cov8" title="1">d.write(buf, "|- %s (%d)\n", d.Name, d.Size)
+        for _, f := range d.Files </span><span class="cov8" title="1">{
+                for n := 0; n &lt; indent+indentWidth; n++ </span><span class="cov8" title="1">{
+                        d.write(buf, " ")
+                }</span>
+                <span class="cov8" title="1">d.write(buf, "|- %s (%d)\n", f.Name, f.Size)</span>
+        }
+        <span class="cov8" title="1">for _, dir := range d.Dirs </span><span class="cov8" title="1">{
+                dir.pretty(indent+indentWidth, buf)
+        }</span>
+}
+
+func (d WalkDir) write(buf *strings.Builder, format string, a ...interface{}) <span class="cov8" title="1">{
+        _, _ = fmt.Fprintf(buf, format, a...)
+}</span>
+
+// walkSimple traverses the folders and builds the tree in a single goroutine.
+// Just for comparison.
+func walkSimple(path string) (WalkDir, error) <span class="cov8" title="1">{
+        info, err := os.Lstat(path)
+        if err != nil </span><span class="cov0" title="0">{
+                return WalkDir{}, err
+        }</span>
+        <span class="cov8" title="1">infos, err := ioutil.ReadDir(path)
+        if err != nil </span><span class="cov0" title="0">{
+                return WalkDir{}, err
+        }</span>
+        <span class="cov8" title="1">var dirs []WalkDir
+        var files []WalkFile
+        size := info.Size()
+        for _, info := range infos </span><span class="cov8" title="1">{
+                if info.IsDir() </span><span class="cov8" title="1">{
+                        dir, err := walkSimple(filepath.Join(path, info.Name()))
+                        if err != nil </span><span class="cov0" title="0">{
+                                return WalkDir{}, err
+                        }</span>
+                        <span class="cov8" title="1">size += dir.Size
+                        dirs = append(dirs, dir)</span>
+                } else<span class="cov8" title="1"> {
+                        size += info.Size()
+                        files = append(files, WalkFile{
+                                Name: info.Name(),
+                                Size: info.Size(),
+                        })
+                }</span>
+        }
+        <span class="cov8" title="1">return WalkDir{
+                Name:  info.Name(),
+                Size:  size,
+                Dirs:  dirs,
+                Files: files,
+        }, nil</span>
+}
+
+// walk traverses the folders and builds the tree in multi-goroutines.
+// The caller is responsible for building wg and needs to call wg.Wait()
+// externally to wait for the call to finish.
+// WalkDir will be consumed from dirCh if successful, otherwise error
+// will be consumed from errCh.
+func walk(path string, wg *sync.WaitGroup, dirCh chan&lt;- WalkDir, errCh chan&lt;- error) <span class="cov8" title="1">{
+        defer wg.Done()
+
+        // Get dir info.
+        info, err := os.Lstat(path)
+        if err != nil </span><span class="cov0" title="0">{
+                errCh &lt;- err
+                return
+        }</span>
+
+        // Read sub files &amp; dirs.
+        <span class="cov8" title="1">infos, err := ioutil.ReadDir(path) // TODO: limit read concurrency.
+        if err != nil </span><span class="cov0" title="0">{
+                errCh &lt;- err
+                return
+        }</span>
+
+        // Iterate sub entries, if it is a file type, append to slice and add size directly,
+        // otherwise start a new goroutine for asynchronous statistics.
+        <span class="cov8" title="1">var dirs []WalkDir
+        var files []WalkFile
+        size := info.Size()
+        subWg := sync.WaitGroup{}
+        subDirCh := make(chan WalkDir)
+        subErrCh := make(chan error)
+        for _, info := range infos </span><span class="cov8" title="1">{
+                if info.IsDir() </span><span class="cov8" title="1">{
+                        subWg.Add(1)
+                        go walk(filepath.Join(path, info.Name()), &amp;subWg, subDirCh, subErrCh)
+                }</span> else<span class="cov8" title="1"> {
+                        size += info.Size()
+                        files = append(files, WalkFile{
+                                Name: info.Name(),
+                                Size: info.Size(),
+                        })
+                }</span>
+        }
+
+        <span class="cov8" title="1">go func() </span><span class="cov8" title="1">{
+                // Wait until all sub dirs are walked, then close the
+                // channel to notify main goroutine that it is over.
+                subWg.Wait()
+                close(subDirCh)
+                close(subErrCh)
+        }</span>()
+
+<span class="cov8" title="1">Loop:
+        for </span><span class="cov8" title="1">{
+                select </span>{
+                case dir, ok := &lt;-subDirCh:<span class="cov8" title="1">
+                        if !ok </span><span class="cov8" title="1">{
+                                // Here we know that all sub dirs have been walked.
+                                break Loop</span>
+                        }
+                        <span class="cov8" title="1">size += dir.Size
+                        dirs = append(dirs, dir)</span>
+                case err, ok := &lt;-subErrCh:<span class="cov0" title="0">
+                        if !ok </span><span class="cov0" title="0">{
+                                break Loop</span>
+                        }
+                        <span class="cov0" title="0">errCh &lt;- err</span>
+                }
+        }
+
+        // Notifies the caller of the aggregated result.
+        <span class="cov8" title="1">dirCh &lt;- WalkDir{
+                Name:  info.Name(),
+                Size:  size,
+                Dirs:  dirs,
+                Files: files,
+        }</span>
+}
+
+func main() <span class="cov0" title="0">{
+        flag.Parse()
+        wg := sync.WaitGroup{}
+        wg.Add(1)
+        dirCh := make(chan WalkDir)
+        errCh := make(chan error)
+        go walk(*flagDir, &amp;wg, dirCh, errCh)
+        select </span>{
+        case dir := &lt;-dirCh:<span class="cov0" title="0">
+                fmt.Println(dir.Pretty())</span>
+        case err := &lt;-errCh:<span class="cov0" title="0">
+                panic(err)</span>
+        }
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
