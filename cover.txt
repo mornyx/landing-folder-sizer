@@ -1,7 +1,0 @@
-github.com/mornyx/landing-folder-sizer/main.go:32:	Pretty		100.0%
-github.com/mornyx/landing-folder-sizer/main.go:38:	pretty		100.0%
-github.com/mornyx/landing-folder-sizer/main.go:54:	write		100.0%
-github.com/mornyx/landing-folder-sizer/main.go:60:	walkSimple	84.2%
-github.com/mornyx/landing-folder-sizer/main.go:101:	walk		80.0%
-github.com/mornyx/landing-folder-sizer/main.go:174:	main		0.0%
-total:							(statements)	75.0%

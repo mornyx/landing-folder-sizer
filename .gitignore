@@ -2,3 +2,6 @@
 .idea
 *.iml
 /target
+/cover.out
+/cover.txt
+/cover.html
